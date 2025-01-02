@@ -39,14 +39,32 @@ function App() {
   };
 
   async function doPrint() {
-    for (let i = 0; i < 12; i++) {
-      setTicketId("123456789012");
-      setUserState("20代男性");
-      setIssuePlace("西側受付");
-      let d = new Date();
-      setCurrentTime(d.toLocaleString());
-      setIsLoading(true);
+    setIsLoading(true);
+    const d = new Date();
+    const issuedTime = d.toLocaleString();
+
+    // チケット作成のためのPOSTリクエスト
+    const response = await fetch("https://100-ticket-server.a-gakusai.workers.dev/tickets/createTicket", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        OwnerId: inputValue,
+        Issuer: "竹尾健",
+        IssuedPlace: "西受付",
+        IssuedTime: issuedTime
+      })
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      setTicketId(data.TicketId); // レスポンスから ticketId を設定
+
       await ePosDev.connect("192.168.0.1", 8008, cbConnect);
+    } else {
+      console.log("Failed to create ticket");
+      setIsLoading(false);
     }
   }
 
