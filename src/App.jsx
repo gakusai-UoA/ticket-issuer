@@ -11,6 +11,7 @@ function App() {
   const inputRef = useRef(null);
   const [inputValue, setInputValue] = useState("");
   const [idIdentified, setIdIdentified] = useState(false);
+  const [ownerId, setOwnerId] = useState("");
   var printer = null;
   var ePosDev = new window.epson.ePOSDevice();
 
@@ -33,6 +34,7 @@ function App() {
 
     // 入力が12文字になったら印刷ボタンを押す
     if (value.length === 12) {
+      setOwnerId(inputValue);
       setInputValue("");
       setIdIdentified(true);
     }
@@ -44,18 +46,21 @@ function App() {
     const issuedTime = d.toLocaleString();
 
     // チケット作成のためのPOSTリクエスト
-    const response = await fetch("https://100-ticket-server.a-gakusai.workers.dev/tickets/createTicket", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        OwnerId: inputValue,
-        Issuer: "竹尾健",
-        IssuedPlace: "西受付",
-        IssuedTime: issuedTime
-      })
-    });
+    const response = await fetch(
+      "https://100-ticket-server.a-gakusai.workers.dev/tickets/createTicket",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          OwnerId: ownerId,
+          Issuer: "竹尾健",
+          IssuedPlace: "西受付",
+          IssuedTime: issuedTime,
+        }),
+      }
+    );
 
     if (response.ok) {
       const data = await response.json();
