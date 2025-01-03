@@ -9,7 +9,7 @@ function App() {
   const [issuePlace, setIssuePlace] = useState(
     Cookies.get("issuePlace") || "西受付"
   );
-  const [issuer, setIssuer] = useState("竹尾健");
+  const [issuer, setIssuer] = useState("");
   const [currentTime, setCurrentTime] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [resultMessage, setResultMessage] = useState("");
@@ -43,12 +43,19 @@ function App() {
     console.log(value);
 
     // 入力が36文字になったら印刷ボタンを押せる様にする
-    if (value.length === 36) {
-      setOwnerId(value);
-      event.target.value == "";
-      setIdIdentified(true);
+    if (value.length === 37) {
+      if (value.charAt(0) === "g") {
+        setOwnerId(value);
+        event.target.value == "";
+        setIdIdentified(true);
+      } else {
+        setResultMessage(
+          "入場QRでない値が入力されました。スタッフIDや100円チケットを読み込んでいませんか？正しく読み込んだのにこれが起こっている場合は、システム管理者までお問い合わせください。"
+        );
+        setIsMessageModalOpen(true);
+      }
     } else {
-      if (value.length >= 36) {
+      if (value.length >= 37) {
         event.target.value == "";
       }
     }
@@ -68,7 +75,7 @@ function App() {
     setIsLoading(true);
     let prn = printer.current;
     if (!prn) {
-      connect();
+      //connect();
     }
     const d = new Date();
     const issuedTime = d.toLocaleString();
@@ -83,10 +90,10 @@ function App() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          OwnerId: ownerId,
-          Issuer: issuer,
-          IssuedPlace: issuePlace,
-          IssuedTime: issuedTime,
+          ownerId: ownerId,
+          issuer: issuer,
+          issuedPlace: issuePlace,
+          issuedTime: issuedTime,
         }),
       }
     );
@@ -230,6 +237,14 @@ function App() {
       4,
       0,
       1000
+    );
+    printer.addBarcode(
+      ticketId,
+      printer.BARCODE_CODE128,
+      printer.HRI_NONE,
+      printer.FONT_A,
+      2,
+      45
     );
     prn.addFeedLine(2);
     prn.addTextSize(1, 1);
