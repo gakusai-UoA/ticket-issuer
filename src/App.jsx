@@ -75,7 +75,7 @@ function App() {
     setIsLoading(true);
     let prn = printer.current;
     if (!prn) {
-      //connect();
+      connect();
     }
     const d = new Date();
     const issuedTime = d.toLocaleString();

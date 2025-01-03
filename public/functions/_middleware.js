@@ -68,11 +68,11 @@ async function handleRequest({ next, request }) {
 
 
     // Not authenticated.
-    return new Response('セキュリティのためにパスワードを設定しています。ユーザー名が学校名、パスワードが校長の名字です。両方ともアルファベットで全て小文字です。Instagramから開く場合、画面右上の...ボタンから「外部ブラウザーで開く」を押し、LINEから開く場合、右下の...ボタンから「ブラウザで開く」を押してください。その他の場合は、運営者までご連絡ください。', {
+    return new Response('セキュリティのためにパスワードを設定しています。Instagramから開く場合、画面右上の...ボタンから「外部ブラウザーで開く」を押し、LINEから開く場合、右下の...ボタンから「ブラウザで開く」を押してください。その他の場合は、運営者までご連絡ください。', {
         status: 401,
         headers: {
             // Prompts the user for credentials.
-            'WWW-Authenticate': 'Basic realm="Username is nansyun, and password is president of nansyun.", charset="UTF-8"',
+            'WWW-Authenticate': 'Basic realm="", charset="UTF-8"',
         },
     })
 }
