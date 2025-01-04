@@ -83,7 +83,7 @@ function App() {
     setConnectionStatus("チケットをサーバーで処理しています...");
     // チケット作成のためのPOSTリクエスト
     const response = await fetch(
-      "https://100-ticket-server.a-gakusai.workers.dev/tickets/createTicket",
+      "https://api.100ticket.soshosai.com/tickets/createTicket",
       {
         method: "POST",
         headers: {
