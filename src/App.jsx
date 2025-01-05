@@ -23,6 +23,7 @@ function App() {
   const [idIdentified, setIdIdentified] = useState(false);
   const [ownerId, setOwnerId] = useState("");
   const [connectionStatus, setConnectionStatus] = useState("");
+  const [ticketCount, setTicketCount] = useState(1); // チケット枚数の状態変数を追加
   const ePosDevice = useRef();
   const printer = useRef();
   const STATUS_CONNECTED = "Connected";
@@ -75,185 +76,186 @@ function App() {
   };
 
   async function doPrint() {
+    let tickets = [];
     setInputValue("");
     setIsLoading(true);
-    if (!printer.current) {
-      await connect();
-    }
-    const d = new Date();
-    const issuedTime = d.toLocaleString();
-    setCurrentTime(issuedTime);
-    setConnectionStatus("チケットをサーバーで処理しています...");
 
-    // チケット作成のためのPOSTリクエスト
-    const response = await fetch(
-      "https://api.100ticket.soshosai.com/tickets/createTicket",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          ownerId: ownerId,
+    for (let i = 0; i < Number(ticketCount); i++) {
+      const d = new Date();
+      const issuedTime = d.toLocaleString();
+      setCurrentTime(issuedTime);
+      setConnectionStatus("チケットをサーバーで処理しています...");
+      // チケット作成のためのPOSTリクエスト
+      const response = await fetch(
+        "https://api.100ticket.soshosai.com/tickets/createTicket",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            ownerId: ownerId,
+            issuer: issuer,
+            issuedPlace: issuePlace,
+            issuedTime: issuedTime,
+          }),
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        setTicketId(data.TicketId); // レスポンスから ticketId を設定
+        switch (data.AgeRange) {
+          case "pre-sc":
+            setUserState("未就学児");
+            break;
+          case "els":
+            setUserState("小学生");
+            break;
+          case "jhs":
+            setUserState("中学生");
+            break;
+          case "hs":
+            setUserState("高校生");
+            break;
+          case "cs":
+            setUserState("大学生");
+            break;
+          case "10s":
+            setUserState("10代");
+            break;
+          case "20s":
+            setUserState("20代");
+            break;
+          case "30s":
+            setUserState("30代");
+            break;
+          case "40s":
+            setUserState("40代");
+            break;
+          case "50s":
+            setUserState("50代");
+            break;
+          case "60s":
+            setUserState("60代");
+            break;
+          case "70s":
+            setUserState("70代");
+            break;
+          case "80s+":
+            setUserState("80代以上");
+            break;
+          case "no-answer":
+            setUserState("無回答");
+            break;
+          default:
+            setUserState("その他");
+            break;
+        }
+
+        if (data.Gender === "male") {
+          setUserState((prev) => prev + "男性");
+        } else if (data.Gender === "female") {
+          setUserState((prev) => prev + "女性");
+        } else {
+          setUserState((prev) => prev + "無回答");
+        }
+        let currentTicket = {
+          ticketId: data.TicketId,
           issuer: issuer,
           issuedPlace: issuePlace,
-          issuedTime: issuedTime,
-        }),
-      }
-    );
-
-    if (response.ok) {
-      const data = await response.json();
-      setTicketId(data.TicketId); // レスポンスから ticketId を設定
-      switch (data.AgeRange) {
-        case "pre-sc":
-          setUserState("未就学児");
-          break;
-        case "els":
-          setUserState("小学生");
-          break;
-        case "jhs":
-          setUserState("中学生");
-          break;
-        case "hs":
-          setUserState("高校生");
-          break;
-        case "cs":
-          setUserState("大学生");
-          break;
-        case "10s":
-          setUserState("10代");
-          break;
-        case "20s":
-          setUserState("20代");
-          break;
-        case "30s":
-          setUserState("30代");
-          break;
-        case "40s":
-          setUserState("40代");
-          break;
-        case "50s":
-          setUserState("50代");
-          break;
-        case "60s":
-          setUserState("60代");
-          break;
-        case "70s":
-          setUserState("70代");
-          break;
-        case "80s+":
-          setUserState("80代以上");
-          break;
-        case "no-answer":
-          setUserState("無回答");
-          break;
-        default:
-          setUserState("その他");
-          break;
-      }
-      if (data.Gender === "male") {
-        setUserState((prev) => prev + "男性");
-      } else if (data.Gender === "female") {
-        setUserState((prev) => prev + "女性");
+          currentTime: issuedTime,
+          userState: userState,
+        };
+        tickets.push(currentTicket);
+        setIsLoading(false);
+        setIdIdentified(false);
       } else {
-        setUserState((prev) => prev + "無回答");
+        if (response.status === 404) {
+          setResultMessage(
+            "グループが見つかりませんでした。\n該当のグループを呼び止め、システム管理者を呼んでください。"
+          );
+        } else {
+          setResultMessage("チケットを作成できませんでした。");
+        }
+        setIsMessageModalOpen(true);
+        console.log("Failed to create ticket");
+        setIsLoading(false);
+        setIdIdentified(false);
       }
-      await print();
-      setIsLoading(false);
-      setIdIdentified(false);
-    } else {
-      if (response.status === 404) {
-        setResultMessage(
-          "グループが見つかりませんでした。\n該当のグループを呼び止め、システム管理者を呼んでください。"
-        );
-      } else {
-        setResultMessage("チケットを作成できませんでした。");
-      }
-      setIsMessageModalOpen(true);
-      console.log("Failed to create ticket");
-      setIsLoading(false);
-      setIdIdentified(false);
     }
+    await print(tickets);
   }
 
-  const connect = () => {
-    setConnectionStatus("プリンターに接続しています...");
-
-    if (!ipAddress) {
-      setResultMessage(
-        "プリンターに接続できませんでした。プリンターのIPアドレスが設定されていません。"
-      );
-      setIsMessageModalOpen(true);
-      setIsLoading(false);
-      setIdIdentified(false);
-      return;
-    }
-    let ePosDev = new window.epson.ePOSDevice();
-    ePosDevice.current = ePosDev;
-
-    ePosDev.connect(ipAddress, 8043, (data) => {
-      if (data === "OK") {
-        ePosDev.createDevice(
-          "local_printer",
-          ePosDev.DEVICE_TYPE_PRINTER,
-          { crypto: true, buffer: false },
-          (devobj, retcode) => {
-            if (retcode === "OK") {
-              printer.current = devobj;
-              setConnectionStatus(STATUS_CONNECTED);
-            } else {
-              throw retcode;
-            }
-          }
-        );
-      } else {
-        throw data;
-      }
-    });
-  };
-
-  const print = () => {
+  const print = (tickets) => {
     setConnectionStatus("印刷を始めています...");
     let prn = printer.current;
     if (!prn) {
-      setResultMessage(
-        "プリンターに接続できませんでした。解決しない場合は、システム管理者を呼んでください。"
-      );
-      setIsMessageModalOpen(true);
-      setIsLoading(false);
-      setIdIdentified(false);
-      return;
+      setConnectionStatus("プリンターに接続しています...");
+
+      if (!ipAddress) {
+        setResultMessage(
+          "プリンターに接続できませんでした。プリンターのIPアドレスが設定されていません。"
+        );
+        setIsMessageModalOpen(true);
+        setIsLoading(false);
+        setIdIdentified(false);
+        return;
+      }
+      let ePosDev = new window.epson.ePOSDevice();
+      ePosDevice.current = ePosDev;
+
+      ePosDev.connect(ipAddress, 8008, (data) => {
+        if (data === "OK") {
+          ePosDev.createDevice(
+            "local_printer",
+            ePosDev.DEVICE_TYPE_PRINTER,
+            { crypto: true, buffer: false },
+            (devobj, retcode) => {
+              if (retcode === "OK") {
+                printer.current = devobj;
+                setConnectionStatus(STATUS_CONNECTED);
+              } else {
+                throw retcode;
+              }
+            }
+          );
+        } else {
+          throw data;
+        }
+      });
     }
-    prn.addTextAlign(prn.ALIGN_CENTER);
-    prn.addTextFont(prn.FONT_A);
-    prn.addTextLang("ja");
-    prn.addTextStyle(true, true, true, prn.COLOR_1);
-    prn.addTextSize(3, 3);
-    prn.addFeedLine(3);
-    prn.addText("蒼翔祭2025\n");
-    prn.addTextSize(2, 2);
-    prn.addText("100円チケット\n");
-    prn.addFeedLine(3);
-    prn.addTextStyle(false, false, false, prn.COLOR_1);
-    prn.addTextSize(1, 1);
-    prn.addSymbol(
-      ticketId,
-      prn.SYMBOL_QRCODE_MODEL_2,
-      prn.LEVEL_DEFAULT,
-      10,
-      0,
-      1000
-    );
-    prn.addFeedLine(2);
-    prn.addText(`チケットID:${ticketId}\n`);
-    prn.addFeedLine(5);
-    prn.addText(`発行者:${issuer}\n`);
-    prn.addText(`発行場所:${issuePlace}\n`);
-    prn.addText(`発行時刻:${currentTime}\n`);
-    prn.addText(`使用者属性:${userState}\n`);
-    prn.addFeedLine(3);
-    prn.addCut(prn.CUT_FEED);
+    tickets.forEach((ticket) => {
+      prn.addTextAlign(prn.ALIGN_CENTER);
+      prn.addTextFont(prn.FONT_A);
+      prn.addTextLang("ja");
+      prn.addTextStyle(true, true, true, prn.COLOR_1);
+      prn.addTextSize(3, 3);
+      prn.addFeedLine(3);
+      prn.addText("蒼翔祭2025\n");
+      prn.addTextSize(2, 2);
+      prn.addText("100円チケット\n");
+      prn.addFeedLine(3);
+      prn.addTextStyle(false, false, false, prn.COLOR_1);
+      prn.addTextSize(1, 1);
+      prn.addSymbol(
+        ticket.ticketId,
+        prn.SYMBOL_QRCODE_MODEL_2,
+        prn.LEVEL_DEFAULT,
+        10,
+        0,
+        1000
+      );
+      prn.addFeedLine(2);
+      prn.addText(`チケットID:${ticket.ticketId}\n`);
+      prn.addFeedLine(5);
+      prn.addText(`発行者:${ticket.issuer}\n`);
+      prn.addText(`発行場所:${ticket.issuedPlace}\n`);
+      prn.addText(`発行時刻:${ticket.currentTime}\n`);
+      prn.addText(`使用者属性:${ticket.userState}\n`);
+      prn.addFeedLine(3);
+      prn.addCut(prn.CUT_FEED);
+    });
     prn.send();
   };
 
@@ -368,6 +370,16 @@ function App() {
             onChange={handleInputChange}
             onBlur={handleBlur}
           />
+          <label className="block mb-4">
+            チケット枚数:
+            <input
+              type="number"
+              value={ticketCount}
+              onChange={(e) => setTicketCount(Number(e.target.value))}
+              className="border p-2 w-full mt-1 rounded"
+              min="1"
+            />
+          </label>
           <div className="mt-5">
             {!idIdentified ? (
               <button
