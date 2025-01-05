@@ -1,9 +1,8 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import Cookies from "js-cookie";
 import "./App.css";
 
 function App() {
-  //Use何たら
   const [ticketId, setTicketId] = useState("");
   const [userState, setUserState] = useState("");
   const [issuePlace, setIssuePlace] = useState(
@@ -26,14 +25,19 @@ function App() {
   const [connectionStatus, setConnectionStatus] = useState("");
   const ePosDevice = useRef();
   const printer = useRef();
+  const STATUS_CONNECTED = "Connected";
 
-  //Use何たらの終わり
+  useEffect(() => {
+    // フォーカスをテキストボックスに当てる
+    if (inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, []);
+
   const handleBlur = () => {
     // フォーカスが外れたら再度フォーカスを当てる
-    if (inputRef.current) {
-      if (!isModalOpen) {
-        inputRef.current.focus();
-      }
+    if (inputRef.current && !isModalOpen) {
+      inputRef.current.focus();
     }
   };
 
@@ -46,7 +50,6 @@ function App() {
     if (value.length === 37) {
       if (value.charAt(0) === "g") {
         setOwnerId(value);
-        event.target.value == "";
         setIdIdentified(true);
       } else {
         setResultMessage(
@@ -56,7 +59,7 @@ function App() {
       }
     } else {
       if (value.length >= 37) {
-        event.target.value == "";
+        setInputValue("");
       }
     }
   };
@@ -72,15 +75,16 @@ function App() {
   };
 
   async function doPrint() {
+    setInputValue("");
     setIsLoading(true);
-    let prn = printer.current;
-    if (!prn) {
-      connect();
+    if (!printer.current) {
+      await connect();
     }
     const d = new Date();
     const issuedTime = d.toLocaleString();
     setCurrentTime(issuedTime);
     setConnectionStatus("チケットをサーバーで処理しています...");
+
     // チケット作成のためのPOSTリクエスト
     const response = await fetch(
       "https://api.100ticket.soshosai.com/tickets/createTicket",
@@ -143,19 +147,21 @@ function App() {
           break;
         case "no-answer":
           setUserState("無回答");
+          break;
         default:
           setUserState("その他");
           break;
       }
-      if (data.Gender == "male") {
-        setUserState(userState + "男性");
-      } else if (data.gender == "female") {
-        setUserState(userState + "女性");
+      if (data.Gender === "male") {
+        setUserState((prev) => prev + "男性");
+      } else if (data.Gender === "female") {
+        setUserState((prev) => prev + "女性");
       } else {
-        setUserState(userState + "無回答");
+        setUserState((prev) => prev + "無回答");
       }
-      setUserState(data.AgeRange);
-      print();
+      await print();
+      setIsLoading(false);
+      setIdIdentified(false);
     } else {
       if (response.status === 404) {
         setResultMessage(
@@ -170,6 +176,7 @@ function App() {
       setIdIdentified(false);
     }
   }
+
   const connect = () => {
     setConnectionStatus("プリンターに接続しています...");
 
@@ -185,7 +192,7 @@ function App() {
     let ePosDev = new window.epson.ePOSDevice();
     ePosDevice.current = ePosDev;
 
-    ePosDev.connect(ipAddress, 8008, (data) => {
+    ePosDev.connect(ipAddress, 8043, (data) => {
       if (data === "OK") {
         ePosDev.createDevice(
           "local_printer",
@@ -218,40 +225,34 @@ function App() {
       setIdIdentified(false);
       return;
     }
-    ï;
     prn.addTextAlign(prn.ALIGN_CENTER);
     prn.addTextFont(prn.FONT_A);
     prn.addTextLang("ja");
-    prn.addFeedLine(1);
-    prn.addTextStyle(false, false, true, prn.COLOR_1);
+    prn.addTextStyle(true, true, true, prn.COLOR_1);
     prn.addTextSize(3, 3);
+    prn.addFeedLine(3);
     prn.addText("蒼翔祭2025\n");
     prn.addTextSize(2, 2);
     prn.addText("100円チケット\n");
-    prn.addFeedLine(2);
+    prn.addFeedLine(3);
     prn.addTextStyle(false, false, false, prn.COLOR_1);
+    prn.addTextSize(1, 1);
     prn.addSymbol(
       ticketId,
       prn.SYMBOL_QRCODE_MODEL_2,
       prn.LEVEL_DEFAULT,
-      4,
+      10,
       0,
       1000
     );
-    printer.addBarcode(
-      ticketId,
-      printer.BARCODE_CODE128,
-      printer.HRI_NONE,
-      printer.FONT_A,
-      2,
-      45
-    );
     prn.addFeedLine(2);
-    prn.addTextSize(1, 1);
+    prn.addText(`チケットID:${ticketId}\n`);
+    prn.addFeedLine(5);
     prn.addText(`発行者:${issuer}\n`);
     prn.addText(`発行場所:${issuePlace}\n`);
     prn.addText(`発行時刻:${currentTime}\n`);
     prn.addText(`使用者属性:${userState}\n`);
+    prn.addFeedLine(3);
     prn.addCut(prn.CUT_FEED);
     prn.send();
   };
@@ -340,6 +341,18 @@ function App() {
             >
               {connectionStatus}
             </a>
+            <button
+              onClick={() => {
+                setIsMessageModalOpen(false);
+                setInputValue(""); // テキストボックス内の値を消す
+                if (inputRef.current) {
+                  inputRef.current.focus(); // テキストボックスにフォーカスを当てる
+                }
+              }}
+              className="mt-4 p-2 bg-red-500 text-white rounded w-full"
+            >
+              印刷完了
+            </button>
           </div>
         </div>
       ) : (
