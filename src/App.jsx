@@ -3,8 +3,6 @@ import Cookies from "js-cookie";
 import "./App.css";
 
 function App() {
-  const [ticketId, setTicketId] = useState("");
-  const [userState, setUserState] = useState("");
   const [issuePlace, setIssuePlace] = useState(
     Cookies.get("issuePlace") || "西受付"
   );
@@ -73,158 +71,204 @@ function App() {
     if (inputRef.current) {
       inputRef.current.focus(); // テキストボックスにフォーカスを当てる
     }
+    setConnectionStatus("プリンターに接続しています...");
+
+    if (!ipAddress) {
+      setResultMessage(
+        "プリンターに接続できませんでした。プリンターのIPアドレスが設定されていません。"
+      );
+      setIsMessageModalOpen(true);
+      setIsLoading(false);
+      setIdIdentified(false);
+      return;
+    }
+    let ePosDev = new window.epson.ePOSDevice();
+    ePosDevice.current = ePosDev;
+
+    ePosDev.connect(ipAddress, 8008, (data) => {
+      if (data === "OK") {
+        ePosDev.createDevice(
+          "local_printer",
+          ePosDev.DEVICE_TYPE_PRINTER,
+          { crypto: true, buffer: false },
+          (devobj, retcode) => {
+            if (retcode === "OK") {
+              printer.current = devobj;
+              setConnectionStatus(STATUS_CONNECTED);
+            } else {
+              throw retcode;
+            }
+          }
+        );
+      } else {
+        throw data;
+      }
+    });
   };
 
   async function doPrint() {
-    let tickets = [];
     setInputValue("");
     setIsLoading(true);
 
-    for (let i = 0; i < Number(ticketCount); i++) {
-      const d = new Date();
-      const issuedTime = d.toLocaleString();
-      setCurrentTime(issuedTime);
-      setConnectionStatus("チケットをサーバーで処理しています...");
-      // チケット作成のためのPOSTリクエスト
-      const response = await fetch(
-        "https://api.100ticket.soshosai.com/tickets/createTicket",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            ownerId: ownerId,
-            issuer: issuer,
-            issuedPlace: issuePlace,
-            issuedTime: issuedTime,
-          }),
-        }
-      );
+    const d = new Date();
+    const issuedTime = d.toLocaleString();
+    setCurrentTime(issuedTime);
+    setConnectionStatus("チケットをサーバーで処理しています...");
 
-      if (response.ok) {
-        const data = await response.json();
-        setTicketId(data.TicketId); // レスポンスから ticketId を設定
-        switch (data.AgeRange) {
+    // チケット作成のためのPOSTリクエスト
+    const response = await fetch(
+      "https://api.100ticket.soshosai.com/tickets/createTicket",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          ownerId: ownerId,
+          issuer: issuer,
+          issuedPlace: issuePlace,
+          issuedTime: issuedTime,
+          ticketCount: ticketCount,
+        }),
+      }
+    );
+
+    if (response.ok) {
+      const data = await response.json();
+      const tickets = data.map((ticket) => {
+        let userState = "";
+        switch (ticket.AgeRange) {
           case "pre-sc":
-            setUserState("未就学児");
+            userState = "未就学児";
             break;
           case "els":
-            setUserState("小学生");
+            userState = "小学生";
             break;
           case "jhs":
-            setUserState("中学生");
+            userState = "中学生";
             break;
           case "hs":
-            setUserState("高校生");
+            userState = "高校生";
             break;
           case "cs":
-            setUserState("大学生");
+            userState = "大学生";
             break;
           case "10s":
-            setUserState("10代");
+            userState = "10代";
             break;
           case "20s":
-            setUserState("20代");
+            userState = "20代";
             break;
           case "30s":
-            setUserState("30代");
+            userState = "30代";
             break;
           case "40s":
-            setUserState("40代");
+            userState = "40代";
             break;
           case "50s":
-            setUserState("50代");
+            userState = "50代";
             break;
           case "60s":
-            setUserState("60代");
+            userState = "60代";
             break;
           case "70s":
-            setUserState("70代");
+            userState = "70代";
             break;
           case "80s+":
-            setUserState("80代以上");
+            userState = "80代以上";
             break;
           case "no-answer":
-            setUserState("無回答");
+            userState = "無回答";
             break;
           default:
-            setUserState("その他");
+            userState = "その他";
             break;
         }
 
-        if (data.Gender === "male") {
-          setUserState((prev) => prev + "男性");
-        } else if (data.Gender === "female") {
-          setUserState((prev) => prev + "女性");
+        if (ticket.Gender === "male") {
+          userState += "男性";
+        } else if (ticket.Gender === "female") {
+          userState += "女性";
         } else {
-          setUserState((prev) => prev + "無回答");
+          userState += "無回答";
         }
-        let currentTicket = {
-          ticketId: data.TicketId,
+
+        return {
+          ticketId: ticket.TicketId,
           issuer: issuer,
           issuedPlace: issuePlace,
           currentTime: issuedTime,
           userState: userState,
         };
-        tickets.push(currentTicket);
-        setIsLoading(false);
-        setIdIdentified(false);
+      });
+
+      await print(tickets);
+      setIsLoading(false);
+      setIdIdentified(false);
+    } else {
+      if (response.status === 404) {
+        setResultMessage(
+          "グループが見つかりませんでした。\n該当のグループを呼び止め、システム管理者を呼んでください。"
+        );
       } else {
-        if (response.status === 404) {
-          setResultMessage(
-            "グループが見つかりませんでした。\n該当のグループを呼び止め、システム管理者を呼んでください。"
-          );
-        } else {
-          setResultMessage("チケットを作成できませんでした。");
-        }
-        setIsMessageModalOpen(true);
-        console.log("Failed to create ticket");
-        setIsLoading(false);
-        setIdIdentified(false);
+        setResultMessage("チケットを作成できませんでした。");
       }
+      setIsMessageModalOpen(true);
+      console.log("Failed to create ticket");
+      setIsLoading(false);
+      setIdIdentified(false);
     }
-    await print(tickets);
   }
+
+  const connect = () => {
+    setConnectionStatus("プリンターに接続しています...");
+
+    if (!ipAddress) {
+      setResultMessage(
+        "プリンターに接続できませんでした。プリンターのIPアドレスが設定されていません。"
+      );
+      setIsMessageModalOpen(true);
+      setIsLoading(false);
+      setIdIdentified(false);
+      return;
+    }
+    let ePosDev = new window.epson.ePOSDevice();
+    ePosDevice.current = ePosDev;
+
+    ePosDev.connect(ipAddress, 8008, (data) => {
+      if (data === "OK") {
+        ePosDev.createDevice(
+          "local_printer",
+          ePosDev.DEVICE_TYPE_PRINTER,
+          { crypto: true, buffer: false },
+          (devobj, retcode) => {
+            if (retcode === "OK") {
+              printer.current = devobj;
+              setConnectionStatus(STATUS_CONNECTED);
+            } else {
+              throw retcode;
+            }
+          }
+        );
+      } else {
+        throw data;
+      }
+    });
+  };
 
   const print = (tickets) => {
     setConnectionStatus("印刷を始めています...");
     let prn = printer.current;
     if (!prn) {
-      setConnectionStatus("プリンターに接続しています...");
-
-      if (!ipAddress) {
-        setResultMessage(
-          "プリンターに接続できませんでした。プリンターのIPアドレスが設定されていません。"
-        );
-        setIsMessageModalOpen(true);
-        setIsLoading(false);
-        setIdIdentified(false);
-        return;
-      }
-      let ePosDev = new window.epson.ePOSDevice();
-      ePosDevice.current = ePosDev;
-
-      ePosDev.connect(ipAddress, 8008, (data) => {
-        if (data === "OK") {
-          ePosDev.createDevice(
-            "local_printer",
-            ePosDev.DEVICE_TYPE_PRINTER,
-            { crypto: true, buffer: false },
-            (devobj, retcode) => {
-              if (retcode === "OK") {
-                printer.current = devobj;
-                setConnectionStatus(STATUS_CONNECTED);
-              } else {
-                throw retcode;
-              }
-            }
-          );
-        } else {
-          throw data;
-        }
-      });
+      setResultMessage(
+        "プリンターに接続できませんでした。解決しない場合は、システム管理者を呼んでください。"
+      );
+      setIsMessageModalOpen(true);
+      setIsLoading(false);
+      setIdIdentified(false);
+      return;
     }
+
     tickets.forEach((ticket) => {
       prn.addTextAlign(prn.ALIGN_CENTER);
       prn.addTextFont(prn.FONT_A);
@@ -256,6 +300,7 @@ function App() {
       prn.addFeedLine(3);
       prn.addCut(prn.CUT_FEED);
     });
+
     prn.send();
   };
 
