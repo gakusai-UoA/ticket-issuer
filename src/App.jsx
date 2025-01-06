@@ -71,39 +71,28 @@ function App() {
     if (inputRef.current) {
       inputRef.current.focus(); // テキストボックスにフォーカスを当てる
     }
-    setConnectionStatus("プリンターに接続しています...");
+    connect();
+  };
 
-    if (!ipAddress) {
-      setResultMessage(
-        "プリンターに接続できませんでした。プリンターのIPアドレスが設定されていません。"
-      );
-      setIsMessageModalOpen(true);
+  const setupPrinterCallbacks = () => {
+    const prn = printer.current;
+    if (!prn) return;
+
+    prn.onreceive = (res) => {
+      if (res.success) {
+        console.log("Print job completed successfully");
+      } else {
+        console.error(`Print job failed with code: ${res.code}`);
+      }
       setIsLoading(false);
       setIdIdentified(false);
-      return;
-    }
-    let ePosDev = new window.epson.ePOSDevice();
-    ePosDevice.current = ePosDev;
+    };
 
-    ePosDev.connect(ipAddress, 8008, (data) => {
-      if (data === "OK") {
-        ePosDev.createDevice(
-          "local_printer",
-          ePosDev.DEVICE_TYPE_PRINTER,
-          { crypto: true, buffer: false },
-          (devobj, retcode) => {
-            if (retcode === "OK") {
-              printer.current = devobj;
-              setConnectionStatus(STATUS_CONNECTED);
-            } else {
-              throw retcode;
-            }
-          }
-        );
-      } else {
-        throw data;
-      }
-    });
+    prn.onerror = (err) => {
+      console.error(`Printer error: ${err.status}`);
+      setIsLoading(false);
+      setIdIdentified(false);
+    };
   };
 
   async function doPrint() {
@@ -203,8 +192,6 @@ function App() {
       });
 
       await print(tickets);
-      setIsLoading(false);
-      setIdIdentified(false);
     } else {
       if (response.status === 404) {
         setResultMessage(
@@ -245,6 +232,7 @@ function App() {
             if (retcode === "OK") {
               printer.current = devobj;
               setConnectionStatus(STATUS_CONNECTED);
+              setupPrinterCallbacks();
             } else {
               throw retcode;
             }
@@ -256,16 +244,39 @@ function App() {
     });
   };
 
-  const print = (tickets) => {
-    setConnectionStatus("印刷を始めています...");
+  const print = async (tickets) => {
+    setConnectionStatus("印刷しています...");
     let prn = printer.current;
     if (!prn) {
-      setResultMessage(
-        "プリンターに接続できませんでした。解決しない場合は、システム管理者を呼んでください。"
-      );
-      setIsMessageModalOpen(true);
-      setIsLoading(false);
-      setIdIdentified(false);
+      tickets.forEach(async (ticket) => {
+        let response = await fetch(
+          "https://api.100ticket.soshosai.com/tickets/createTicket",
+          {
+            method: "DELETE",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              ticketId: ticket.ticketId,
+            }),
+          }
+        );
+        if (response.ok) {
+          setResultMessage(
+            "プリンターに接続できませんでした。解決しない場合は、システム管理者を呼んでください。"
+          );
+          setIsMessageModalOpen(true);
+          setIsLoading(false);
+          setIdIdentified(false);
+        } else {
+          setResultMessage(
+            "プリンターに接続できませんでした。内部処理に失敗しました。以下のIDをシステム管理者にお伝えください。ID:" + ticket.ticketId
+          );
+          setIsMessageModalOpen(true);
+          setIsLoading(false);
+          setIdIdentified(false);
+        }
+      });
       return;
     }
 
@@ -380,7 +391,7 @@ function App() {
         >
           <div className="flex flex-col justify-center items-center">
             <div className="animate-ping h-10 w-10 bg-gray-800 rounded-full m-5"></div>
-            <a className="text-3xl m-5">印刷中...</a>
+            <a className="text-3xl m-5">印刷処理中...</a>
             <a
               className={`text-3xl m-5 transition-opacity duration-500 ${
                 connectionStatus ? "opacity-100" : "opacity-0"
