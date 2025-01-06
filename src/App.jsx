@@ -15,6 +15,7 @@ function App() {
   const [ipAddress, setIpAddress] = useState(
     Cookies.get("ipAddress") || "192.168.0.1"
   );
+  const [timeout, setTimeout] = useState(60000); // タイムアウトの状態変数を追加
   const inputRef = useRef(null);
   const staffIdRef = useRef(null);
   const [inputValue, setInputValue] = useState("");
@@ -22,6 +23,7 @@ function App() {
   const [ownerId, setOwnerId] = useState("");
   const [connectionStatus, setConnectionStatus] = useState("");
   const [ticketCount, setTicketCount] = useState(1); // チケット枚数の状態変数を追加
+  const [isConnecting, setIsConnecting] = useState(false);
   const ePosDevice = useRef();
   const printer = useRef();
   const STATUS_CONNECTED = "Connected";
@@ -39,6 +41,13 @@ function App() {
       inputRef.current.focus();
     }
   };
+
+  useEffect(() => {
+    if (printer.current) {
+      setIsModalOpen(false);
+      setIsConnecting(false);
+    }
+  }, [printer.current]);
 
   const handleInputChange = (event) => {
     const value = event.target.value;
@@ -66,12 +75,22 @@ function App() {
   const handleModalSubmit = () => {
     Cookies.set("ipAddress", ipAddress, { expires: 7 });
     Cookies.set("issuePlace", issuePlace, { expires: 7 });
-    setIsModalOpen(false);
     setInputValue(""); // テキストボックス内の値を消す
     if (inputRef.current) {
       inputRef.current.focus(); // テキストボックスにフォーカスを当てる
     }
+    setConnectionStatus("プリンターに接続しています...");
+    if (!ipAddress) {
+      setResultMessage(
+        "プリンターに接続できませんでした。プリンターのIPアドレスが設定されていません。"
+      );
+      setIsMessageModalOpen(true);
+      setIsLoading(false);
+      setIdIdentified(false);
+      return;
+    }
     connect();
+    setIsConnecting(true);
   };
 
   const setupPrinterCallbacks = () => {
@@ -231,6 +250,7 @@ function App() {
           (devobj, retcode) => {
             if (retcode === "OK") {
               printer.current = devobj;
+              printer.current.timeout = timeout; // タイムアウトを設定
               setConnectionStatus(STATUS_CONNECTED);
               setupPrinterCallbacks();
             } else {
@@ -250,7 +270,7 @@ function App() {
     if (!prn) {
       tickets.forEach(async (ticket) => {
         let response = await fetch(
-          "https://api.100ticket.soshosai.com/tickets/createTicket",
+          "https://api.100ticket.soshosai.com/tickets/deleteTicket",
           {
             method: "DELETE",
             headers: {
@@ -270,7 +290,8 @@ function App() {
           setIdIdentified(false);
         } else {
           setResultMessage(
-            "プリンターに接続できませんでした。内部処理に失敗しました。以下のIDをシステム管理者にお伝えください。ID:" + ticket.ticketId
+            "プリンターに接続できませんでした。内部処理に失敗しました。以下のIDをシステム管理者にお伝えください。ID:" +
+              ticket.ticketId
           );
           setIsMessageModalOpen(true);
           setIsLoading(false);
@@ -303,7 +324,7 @@ function App() {
       );
       prn.addFeedLine(2);
       prn.addText(`チケットID:${ticket.ticketId}\n`);
-      prn.addFeedLine(5);
+      prn.addFeedLine(2);
       prn.addText(`発行者:${ticket.issuer}\n`);
       prn.addText(`発行場所:${ticket.issuedPlace}\n`);
       prn.addText(`発行時刻:${ticket.currentTime}\n`);
@@ -355,7 +376,7 @@ function App() {
               onClick={handleModalSubmit}
               className="mt-4 p-2 bg-blue-500 text-white rounded w-full"
             >
-              確認
+              {isConnecting ? "接続中..." : "設定する"}
             </button>
           </div>
         </div>
