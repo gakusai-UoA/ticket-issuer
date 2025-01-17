@@ -35,12 +35,15 @@ function App() {
     }
   }, []);
 
-  const handleBlur = () => {
-    // フォーカスが外れたら再度フォーカスを当てる
-    if (inputRef.current && !isModalOpen) {
-      inputRef.current.focus();
-    }
-  };
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      handleKeyInput(e.key);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, []);
 
   useEffect(() => {
     if (printer.current) {
@@ -48,6 +51,16 @@ function App() {
       setIsConnecting(false);
     }
   }, [printer.current]);
+
+  const handleKeyInput = (key) => {
+    if (key === "Enter") {
+      if (isModalOpen) {
+        handleModalSubmit();
+      } else if (idIdentified) {
+        doPrint();
+      }
+    }
+  };
 
   const handleInputChange = (event) => {
     const value = event.target.value;
@@ -79,6 +92,7 @@ function App() {
     if (inputRef.current) {
       inputRef.current.focus(); // テキストボックスにフォーカスを当てる
     }
+
     setConnectionStatus("プリンターに接続しています...");
     if (!ipAddress) {
       setResultMessage(
@@ -103,6 +117,7 @@ function App() {
       } else {
         console.error(`Print job failed with code: ${res.code}`);
       }
+      setTicketCount(1);
       setIsLoading(false);
       setIdIdentified(false);
     };
@@ -215,6 +230,10 @@ function App() {
       if (response.status === 404) {
         setResultMessage(
           "グループが見つかりませんでした。\n該当のグループを呼び止め、システム管理者を呼んでください。"
+        );
+      } else if (response.status === 429) {
+        setResultMessage(
+          "連続してチケットを発行しすぎています。\nしばらく待ってから再度お試しください。"
         );
       } else {
         setResultMessage("チケットを作成できませんでした。");
@@ -375,6 +394,7 @@ function App() {
             <button
               onClick={handleModalSubmit}
               className="mt-4 p-2 bg-blue-500 text-white rounded w-full"
+              disabled={isConnecting}
             >
               {isConnecting ? "接続中..." : "設定する"}
             </button>
@@ -437,30 +457,34 @@ function App() {
       ) : (
         <div className="flex flex-col justify-center items-center h-screen">
           <a className="text-3xl m-5">蒼翔祭2025</a>
+          <a className="text-xl text-red-500">
+            料金を受け取る前にこの画面を操作しないでください。
+          </a>
+          <a className="text-xl text-red-500">
+            料金の受け渡しは必ず複数人で行なってください。
+          </a>
           <a className="text-3xl m-5">100円チケットを印刷する</a>
-
           {/* 見えないテキストボックス */}
           <input
             ref={inputRef}
             type="text"
             value={inputValue}
             onChange={handleInputChange}
-            onBlur={handleBlur}
           />
-          <label className="block mb-4">
-            チケット枚数:
+          <label className="block mb-4 w-20">
+            枚数:
             <input
               type="number"
               value={ticketCount}
               onChange={(e) => setTicketCount(Number(e.target.value))}
-              className="border p-2 w-full mt-1 rounded"
+              className="border p-2 mt-1 w-20 rounded"
               min="1"
             />
           </label>
           <div className="mt-5">
             {!idIdentified ? (
               <button
-                className="border-black text-5xl border-2 p-5 rounded-lg bg-gray-300 cursor-not-allowed opacity-50"
+                className="border-black text-3xl border-2 p-5 rounded-lg bg-gray-300 cursor-not-allowed opacity-50"
                 disabled
               >
                 入場者QRを読み込んでください
@@ -470,32 +494,25 @@ function App() {
                 onClick={() => {
                   doPrint();
                 }}
-                className="border-black text-5xl border-2 p-5 rounded-lg"
+                className="border-black text-3xl border-2 p-5 rounded-lg"
               >
                 印刷する
               </button>
             )}
           </div>
-          <a className="text-xl text-red-500">
-            料金を受け取る前にこの画面を操作しないでください。
-          </a>
-          <a className="text-xl text-red-500">
-            料金の受け渡しは必ず複数人で行なってください。
-          </a>
+          <button
+            className="fixed top-0 left-0 mb-8 p-6 bg-red-500 text-white rounded text-xl m-5"
+            onClick={() => {
+              setIsModalOpen(true);
+              if (staffIdRef.current) {
+                staffIdRef.current.focus(); // 担当者設定にフォーカスを当てる
+              }
+            }}
+          >
+            担当者変更
+          </button>
         </div>
       )}
-
-      <button
-        className="fixed bottom-0 left-1/2 transform -translate-x-1/2 mb-8 p-6 bg-red-500 text-white rounded text-xl"
-        onClick={() => {
-          setIsModalOpen(true);
-          if (staffIdRef.current) {
-            staffIdRef.current.focus(); // 担当者設定にフォーカスを当てる
-          }
-        }}
-      >
-        担当者変更
-      </button>
     </>
   );
 }
