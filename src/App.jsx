@@ -27,6 +27,20 @@ function App() {
   const ePosDevice = useRef();
   const printer = useRef();
   const STATUS_CONNECTED = "Connected";
+  // contextを状態として持つ
+  const [context, setContext] = useState(null);
+  // 画像読み込み完了トリガー
+  // コンポーネントの初期化完了後コンポーネント状態にコンテキストを登録
+  useEffect(() => {
+    const canvas = document.getElementById("canvas");
+    const canvasContext = canvas.getContext("2d");
+    const img = new Image();
+    img.src = "./sosho-logo-mini.png";
+    img.onload = () => {
+      canvasContext.drawImage(img, 0, 0);
+    };
+    setContext(canvasContext);
+  }, []);
 
   useEffect(() => {
     // フォーカスをテキストボックスに当てる
@@ -326,12 +340,11 @@ function App() {
       prn.addTextLang("ja");
       prn.addTextStyle(true, true, true, prn.COLOR_1);
       prn.addTextSize(3, 3);
-      prn.addFeedLine(3);
       prn.addText("蒼翔祭2025\n");
       prn.addTextSize(2, 2);
       prn.addText("100円チケット\n");
-      prn.addFeedLine(3);
       prn.addTextStyle(false, false, false, prn.COLOR_1);
+      prn.addFeedLine(2);
       prn.addTextSize(1, 1);
       prn.addSymbol(
         ticket.ticketId,
@@ -342,13 +355,16 @@ function App() {
         1000
       );
       prn.addFeedLine(2);
+      prn.addTextAlign(prn.ALIGN_LEFT);
       prn.addText(`チケットID:${ticket.ticketId}\n`);
-      prn.addFeedLine(2);
       prn.addText(`発行者:${ticket.issuer}\n`);
       prn.addText(`発行場所:${ticket.issuedPlace}\n`);
       prn.addText(`発行時刻:${ticket.currentTime}\n`);
-      prn.addText(`使用者属性:${ticket.userState}\n`);
-      prn.addFeedLine(3);
+      prn.addText(`発行者属性:${ticket.userState}\n`);
+      prn.addTextAlign(prn.ALIGN_RIGHT);
+      prn.brightness = 1.0;
+      prn.halftone = prn.HALFTONE_ERROR_DIFFUSION;
+      prn.addImage(context, 0, 0, 150, 150, prn.COLOR_1, prn.MODE_MONO);
       prn.addCut(prn.CUT_FEED);
     });
 
@@ -401,7 +417,6 @@ function App() {
           </div>
         </div>
       )}
-
       {isMessageModalOpen && (
         <div className="fixed inset-0 bg-gray-800 bg-opacity-75 flex justify-center items-center z-50">
           <div className="bg-white p-8 rounded-lg shadow-lg max-w-md w-full">
@@ -424,7 +439,6 @@ function App() {
           </div>
         </div>
       )}
-
       {isLoading ? (
         <div
           className="flex justify-center items-center h-screen"
@@ -513,6 +527,7 @@ function App() {
           </button>
         </div>
       )}
+      <canvas width="150" height="150" id="canvas" className="hidden"></canvas>
     </>
   );
 }
